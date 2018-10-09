@@ -202,6 +202,7 @@ funcaoModelo <- function(df, nTam = 0.8, nMax = 2500) { # RETORNA MODELO E ESTAT
 return(resultado)
 }
 cl <- makeCluster(detectCores())
+clusterExport(cl, "funcaoModelo")
 listaModelos <- parLapply(cl, baseLista, function(x) funcaoModelo(df = x))
 stopCluster(cl)
 
