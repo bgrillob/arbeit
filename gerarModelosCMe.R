@@ -89,6 +89,7 @@ baseLista <- split(baseR, f = baseR$Classificador)
 
   # BASES: AJUSTAR FORMATO DA BASE PARA MATRIZ RETANGULAR (REGRESSÃO)
 funcaoAjustarVariaveis <- function(df) {
+  library(tidyverse)
   df <- df %>% 
     filter(
       Valor.Real.Pago > 3
@@ -121,7 +122,9 @@ rm(list = c("baseAutorizadaHist", "baseCustoHist"))
   # MODELAGEM: FUNÇÃO MODELO ----
 df <- baseLista[[w]]
 funcaoModelo <- function(df, nTam = 0.8, nMax = 2500) { # RETORNA MODELO E ESTATÍSTICAS DOS RESÍDUOS
-    # FUNÇAO MODELO: AJUSTE BASE PARA MODELO ----
+  library(tidyverse)
+  library(caret)
+  # FUNÇAO MODELO: AJUSTE BASE PARA MODELO ----
   baseModelo <- df %>% 
     as.data.frame %>%
     select(-c(Classificador, Chave.Atendimento)) %>%
