@@ -120,7 +120,6 @@ rm(list = c("baseAutorizadaHist", "baseCustoHist"))
 
 # MODELAGEM ----
   # MODELAGEM: FUNÇÃO MODELO ----
-df <- baseLista[[w]]
 funcaoModelo <- function(df, nTam = 0.8, nMax = 2500) { # RETORNA MODELO E ESTATÍSTICAS DOS RESÍDUOS
   library(tidyverse)
   library(caret)
