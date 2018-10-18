@@ -4,11 +4,11 @@ library(cluster)
 library(purrr)
 data(mtcars)
 # STRINGS ----
-intTestar <- 2:15
+intTestar <- 2:5
 # BASE
- baseR <- mtcars %>%
+baseR <- mtcars %>%
      select(gear, cyl, hp)
-
+baseR <- scale(baseR, center = T, scale = T)
 # DETERMINAR ORDEM K POR SILHUETA
 sil_width <- map_dbl(intTestar,  function(k){
   modelo <- pam(x = baseR, k = k)
@@ -36,5 +36,4 @@ ggplot(sil_df, aes(x = k, y = sil_width)) +
 baseScatter <- data.frame(
   baseR, Cluster = as.factor(modelo$clustering)
 )
-
 plot_ly(x = baseScatter$gear, y = baseScatter$cyl, z = baseScatter$hp, type="scatter3d", mode="markers", color = baseScatter$Cluster)
