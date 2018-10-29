@@ -38,3 +38,16 @@ df <- scale(Boston)
 autoplot(prcomp(df), data = Boston, #colour = 'Species',
          loadings = TRUE, loadings.colour = 'blue',
          loadings.label = TRUE, loadings.label.size = 5)
+
+
+# http://www.sthda.com/english/articles/37-model-selection-essentials-in-r/152-principal-component-and-partial-least-squares-regression-essentials/
+#   https://www.r-bloggers.com/computing-and-visualizing-pca-in-r/
+#   https://stats.stackexchange.com/questions/87037/which-variables-explain-which-pca-components-and-vice-versa
+# https://www.r-bloggers.com/performing-principal-components-regression-pcr-in-r/
+#   https://cran.r-project.org/web/packages/ggfortify/vignettes/plot_pca.html
+# https://stats.stackexchange.com/questions/143905/loadings-vs-eigenvectors-in-pca-when-to-use-one-or-another
+# https://stats.stackexchange.com/questions/92499/how-to-interpret-pca-loadings
+# 
+# 
+# http://rstatistics.net/principal-component-analysis/
+#   https://stats.stackexchange.com/questions/4093/interpreting-pca-scores
