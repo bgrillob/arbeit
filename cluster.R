@@ -428,7 +428,6 @@ library(combinat)
 library(caret)
 library(reshape2)
 rm(list = ls())
-setwd('Z:\\CRM\\ANALITICO_ESTUDOS\\2018\\ESTUDOS\\100. Cluster Receita')
 # FUNÇÕES PRE-DEFINIDAS ----
 source('R Script - Cluster - Funcao Calcular Clusters.R')
 source('R Script - Cluster - Funcao Escolher Cluster.R')
