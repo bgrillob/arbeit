@@ -135,11 +135,19 @@ funcaoCalcularClusters <- function(x, idClust, kTest = 3:12, seed = 15081991) {
 }
 
 
-# varFixas sempre entram no cluster
-# varCombn são testadas
+----------------------------
+----------------------------
+----------------------------
+----------------------------
+
+# varFixas sempre entram no cluster (inserir vetor com nome variáveis)
+# varCombn são testadas (inserir vetor com nome variáveis)
 # percPior é o limite percentual em que é aceitável trazer um cluster que não tem máxima silhueta
-  # ex: percPior 0.03, traz-se os clusters que tem silhueta 97% ou mais em relação à máxima
-funcaoEscolherClusters <- function(df, varFixas = 1:4, varCombn = 5:8, percPior = 0.03) {
+# ex: percPior 0.03, traz-se os clusters que tem silhueta 97% ou mais em relação à máxima
+# intK é o intervalo do número de clusters a testar
+funcaoEscolherClusters <- function(df, varFixasNm, varCombnNm, percPior = 0.03, intK = 3:12) {
+  varFixas <- which(colnames(df) %in% varFixasNm)
+  varCombn <- which(colnames(df) %in% varCombnNm)
   # GERAR COMBINAÇÕES A TESTAR ----
   vetor <- varCombn
   combVariaveis <- lapply(seq_along(vetor), function (x) combinat::combn(vetor, x, simplify = FALSE)) %>%
@@ -149,19 +157,19 @@ funcaoEscolherClusters <- function(df, varFixas = 1:4, varCombn = 5:8, percPior 
   
   # APLICAR COMBINAÇÕES ----
   retornoClusters <- lapply(combVariaveis, function(x) 
-    funcaoCalcularClusters(x = df[, x], idClust = paste0(x, collapse = "|"), seed = seed)
+    funcaoCalcularClusters(x = df[, x], kTest = intK, idClust = paste0(x, collapse = "|"), seed = seed)
   )
   # ESCOLHER MELHORES ----
   comparacaoClusters <- lapply(retornoClusters, function(x) {x$Sumario}) %>%
     do.call(rbind, .)
-    # CLUSTERS QUE IRÃO PARA O RELATÓRIO (OS ESCOLHIDOS) ----
+  # CLUSTERS QUE IRÃO PARA O RELATÓRIO (OS ESCOLHIDOS) ----
   clustersParaRelatorio <- comparacaoClusters %>%
     arrange(-SilhuetaMax) %>%
     filter(
       SilhuetaMax > (max(SilhuetaMax) * criterioCandidatos) # CRITÉRIO POR PROXIMIDADE DO MELHOR CLUSTER
     ) %>%
     mutate(Escolhido = "SIM")
-    # CATEGORIZAÇÃO DE CADA OBSERVAÇÃO PELOS CLUSTERS ESCOLHIDOS ----
+  # CATEGORIZAÇÃO DE CADA OBSERVAÇÃO PELOS CLUSTERS ESCOLHIDOS ----
   resultadosClusters <- lapply(retornoClusters, function(x) {x$Clusters}) %>%
     do.call(rbind, .) %>%
     filter(
@@ -169,6 +177,9 @@ funcaoEscolherClusters <- function(df, varFixas = 1:4, varCombn = 5:8, percPior 
         Iteracao %in% unique(clustersParaRelatorio$Iteracao) &
         Modelo %in% unique(clustersParaRelatorio$Cluster)
     )
+  resultadosClusters <- split(resultadosClusters, f = list(resultadosClusters$Iteracao, resultadosClusters$largSil, resultadosClusters$Modelo))
+  posUsar <- unlist(lapply(resultadosClusters, nrow)) > 0
+  resultadosClusters <- resultadosClusters[posUsar]
   # SCATTER 3D CLUSTERS CANDIDATOS ----
     # MODELO PARA PLANO ----
   lmPlano <- train(
@@ -222,14 +233,15 @@ funcaoEscolherClusters <- function(df, varFixas = 1:4, varCombn = 5:8, percPior 
   resultado <- list(
     dfSumarioClusters = clustersParaRelatorio,
     dfClusterObservacoes = resultadosClusters,
-    scatterSilhueta3D = scatterSilhueta3D
+    scatterSilhueta3D = scatterSilhueta3D,
+    dfUtilizado = df
   )
-return(resultado)
+  return(resultado)
 }
 
+--------------
 
-                          
-                          # FUNÇÃO GERAR RESULTADOS CADA CLUSTER ----
+# FUNÇÃO GERAR RESULTADOS CADA CLUSTER ----
 gerarRelatorio <- function(x, y, xAux = baseClusterNivel) {
   # FUNÇÃO: AJUSTAR BASE ----
   baseScatter <- data.frame(
@@ -413,10 +425,12 @@ gerarRelatorio <- function(x, y, xAux = baseClusterNivel) {
   return(resultado)
 }
 
+-------------------------
+                          -----------------------
+                          -----------------------
+                          -----------------------
                           
-                          # https://stats.stackexchange.com/questions/195446/choosing-the-right-linkage-method-for-hierarchical-clustering
-
-library(plotly)
+ library(plotly)
 library(tidyverse)
 library(cluster)
 library(purrr)
@@ -428,18 +442,18 @@ library(combinat)
 library(caret)
 library(reshape2)
 rm(list = ls())
+setwd("/media/crikket/DATABASE/Cluster Receita/")
 # FUNÇÕES PRE-DEFINIDAS ----
-source('R Script - Cluster - Funcao Calcular Clusters.R')
-source('R Script - Cluster - Funcao Escolher Cluster.R')
-source('R Script - Cluster - Funcao Gerar Relatorio.R')
+source("funcaoCalcularCluster.R")
+source("funcaoEscolherClusters.R")
 
 # STRINGS ----
-intTestar <- 3:9
+intTestar <- 3:12
 seed <- 15081991
 criterioCandidatos <- 0.97 # PEGA OS CLUSTERS ATÉ 3% PIOR QUE MELHOR CLUSTER
 # OBS: NECESSÁRIO EVOLUIR PARA UM CRITÉRIO QUE PENALIZE QUANTIDADE DE CLUSTERS
 # BASE ----
-baseR <- read.table("baseClusterV2.csv", header = T, sep = ";", stringsAsFactors = FALSE)
+baseR
 baseR <- baseR %>%
   replace(is.na(.), 0) %>%
   mutate(
@@ -456,7 +470,8 @@ baseR <- baseR %>%
     LOG_VALOR_REFINANCIAMENTO_OFF = log(VALOR_REFINANCIAMENTO_OFF + 1),
     LOG_RECEITA_TOTAL = log(RECEITA_TOTAL + 1),
     # PROPORCOES
-    PROP_INADIMP = (VALOR_REFINANCIAMENTO_OFF + VALOR_JUROS_OFF) / (RECEITA_TOTAL + 1)
+    PROP_INADIMP = (VALOR_REFINANCIAMENTO_OFF + VALOR_JUROS_OFF) / (RECEITA_TOTAL + 1),
+    PROP_CARNE = VALOR_COMPRA_CARNE / (VALOR_COMPRA_CARNE + VALOR_COMPRA_FATURA + 1)
   ) %>%
   replace(is.na(.), 0) 
 
@@ -469,64 +484,11 @@ baseR <- within(baseR, {
   )
 })
 
-# BASE: AMOSTRA ----
-set.seed(seed)
-obsAmostra <- sample(seq(nrow(baseR)), size = 2000)
-baseCluster <- baseR %>%
-  select(
-    #LOG_RECEITA_TOTAL, # LOG_VALOR_COMPRA_OFF, #LOG_VALOR_COMPRA_ON, 
-    LOG_RECEITA_COMPRA_ON_COM_JUROS,
-    LOG_RECEITA_COMPRA_OFF,
-    LOG_RECEITA_COMPRA_OFF_COM_JUROS,
-    LOG_RECEITA_SQRAP,
-    LOG_RECEITA_SAQUE_CARTAO,
-    LOG_VALOR_TARIFAS_OFF,
-    LOG_VALOR_REFINANCIAMENTO_OFF,
-    LOG_VALOR_JUROS_OFF
-  ) %>%
-  lapply(., function (x) {(x-min(x))/(max(x)-min(x))}) %>% do.call(cbind, .) %>% # RANGE SCALING
-  #scale(., center = TRUE, scale = TRUE) %>% # MEAN-SD SCALING
-  {.[obsAmostra, ]}
-
-baseClusterNivel <- baseR %>%
-  select(
-    -contains('LOG'), -CD_CLNT
-    #RECEITA_TOTAL, VALOR_COMPRA_OFF, VALOR_COMPRA_ON, RECEITA_SQRAP, 
-    #RECEITA_COMPRA_ON_COM_JUROS, RECEITA_COMPRA_OFF_COM_JUROS
-  ) %>%
-  {.[obsAmostra, ]}
-
-
-
-
+# BASE CLUSTER ----
+fixas <- c("LOG_RECEITA_COMPRA_ON_COM_JUROS", "LOG_RECEITA_COMPRA_OFF", "LOG_RECEITA_COMPRA_OFF_COM_JUROS", "LOG_RECEITA_SQRAP")
+variaveis <- c("LOG_RECEITA_SAQUE_CARTAO", "LOG_VALOR_JUROS_OFF" , "LOG_VALOR_TARIFAS_OFF", "LOG_VALOR_REFINANCIAMENTO_OFF")
 
 # RESULTADOS CLUSTERS ----
-  # RESULTADOS CLUSTERS: GERAR RELATÓRIOS ----
-resultadosClusters <- split(resultadosClusters, f = resultadosClusters$largSil)
-clusterRelatorioFinal <- lapply(resultadosClusters, function(x) {
-  gerarRelatorio(
-    x = baseCluster[, {
-      x$Iteracao[1] %>%  # COLUNAS DE REFERÊNCIA
-        as.character %>% strsplit(., split = "\\|") %>% unlist %>% as.numeric
-    }],
-    y = x$Cluster
-  )
-})
-  # RESULTADOS CLUSTERS: NOMEAR LISTA RELATÓRIOS ----
-    # ORDEM: MÉTODO, VARIÁVEIS, N CLUSTERS
-names(clusterRelatorioFinal) <- data.frame(
-  SilhuetaMax = names(resultadosClusters) %>% as.numeric %>% round(., digits = 6)
-) %>%
-  merge(., {clustersParaRelatorio %>%
-      select(SilhuetaMax, Cluster, Iteracao, NumClusters, nVariaveis) %>%
-      mutate(SilhuetaMax = round(SilhuetaMax, digits = 6))
-  }, all.x = TRUE) %>%
-  select(-SilhuetaMax, -nVariaveis) %>%
-  apply(., 1, function(y) {paste0(y, collapse = "<>")})
-
-
-
-
-
-
-
+clusters <- funcaoEscolherClusters(df = baseR, varFixasNm = fixas, varCombnNm = variaveis)
+                          
+                          
