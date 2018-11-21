@@ -1,3 +1,7 @@
+#####################################################
+########### FUNÇÃO CALCULAR CLUSTERS ################
+#####################################################
+
 # CLUSTER: FUNÇÃO COMPARAR CLUSTERS ----
 funcaoCalcularClusters <- function(x, idClust, kTest = 3:12, seed = 15081991) {
   # CLUSTERS CANDIDATOS ----
@@ -8,7 +12,8 @@ funcaoCalcularClusters <- function(x, idClust, kTest = 3:12, seed = 15081991) {
     modelo <- kmeans(x = x, centers = k)
     silhueta <- silhouette(modelo$cluster, dist(x))
     mean(silhueta[, 3])
-  })
+  }) %>%
+    round(., 4)
   set.seed(seed)
   modeloKM <- kmeans(x = x, centers = kTest[which.max(largSilKM)])
   
@@ -20,7 +25,8 @@ funcaoCalcularClusters <- function(x, idClust, kTest = 3:12, seed = 15081991) {
       cutree(., k = k) %>%
       silhouette(., dist(x, method = 'euclidean'))
     mean(silhuetaCompl[, 3])
-  })
+  }) %>%
+    round(., 4)
   
   modeloHCC <- x %>%
     dist(method = 'euclidean') %>%
@@ -36,7 +42,8 @@ funcaoCalcularClusters <- function(x, idClust, kTest = 3:12, seed = 15081991) {
       cutree(., k = k) %>%
       silhouette(., dist(x, method = 'euclidean'))
     mean(silhuetaCompl[, 3])
-  })
+  }) %>%
+    round(., 4)
   
   modeloHCW <- x %>%
     dist(method = 'euclidean') %>%
@@ -51,7 +58,8 @@ funcaoCalcularClusters <- function(x, idClust, kTest = 3:12, seed = 15081991) {
       cutree(., k = k) %>%
       silhouette(., dist(x, method = 'euclidean'))
     mean(silhuetaCompl[, 3])
-  })
+  }) %>%
+    round(., 4)
   
   modeloHCA <- x %>%
     dist(method = 'euclidean') %>%
@@ -134,12 +142,9 @@ funcaoCalcularClusters <- function(x, idClust, kTest = 3:12, seed = 15081991) {
   return(resultado)
 }
 
-
-----------------------------
-----------------------------
-----------------------------
-----------------------------
-
+######################################################
+############# FUNÇÃO ESCOLHER CLUSTERS ###############
+######################################################
 # varFixas sempre entram no cluster (inserir vetor com nome variáveis)
 # varCombn são testadas (inserir vetor com nome variáveis)
 # percPior é o limite percentual em que é aceitável trazer um cluster que não tem máxima silhueta
@@ -166,7 +171,7 @@ funcaoEscolherClusters <- function(df, varFixasNm, varCombnNm, percPior = 0.03, 
   clustersParaRelatorio <- comparacaoClusters %>%
     arrange(-SilhuetaMax) %>%
     filter(
-      SilhuetaMax > (max(SilhuetaMax) * criterioCandidatos) # CRITÉRIO POR PROXIMIDADE DO MELHOR CLUSTER
+      SilhuetaMax > (max(SilhuetaMax) * (1 - percPior) ) # CRITÉRIO POR PROXIMIDADE DO MELHOR CLUSTER
     ) %>%
     mutate(Escolhido = "SIM")
   # CATEGORIZAÇÃO DE CADA OBSERVAÇÃO PELOS CLUSTERS ESCOLHIDOS ----
@@ -181,7 +186,7 @@ funcaoEscolherClusters <- function(df, varFixasNm, varCombnNm, percPior = 0.03, 
   posUsar <- unlist(lapply(resultadosClusters, nrow)) > 0
   resultadosClusters <- resultadosClusters[posUsar]
   # SCATTER 3D CLUSTERS CANDIDATOS ----
-    # MODELO PARA PLANO ----
+  # MODELO PARA PLANO ----
   lmPlano <- train(
     SilhuetaMax ~ NumClusters + nVariaveis,
     data = comparacaoClusters,
@@ -239,198 +244,15 @@ funcaoEscolherClusters <- function(df, varFixasNm, varCombnNm, percPior = 0.03, 
   return(resultado)
 }
 
---------------
+##################################################
+############ APLICAR FUNÇÕES: ####################
+####### TRAZER OBJETO QUE SERÁ USADO NO APP ######
+##################################################
 
-# FUNÇÃO GERAR RESULTADOS CADA CLUSTER ----
-gerarRelatorio <- function(x, y, xAux = baseClusterNivel) {
-  # FUNÇÃO: AJUSTAR BASE ----
-  baseScatter <- data.frame(
-    x, xAux, Cluster = as.factor(y)
-  )
-  # FUNÇÃO: AJUSTAR BASE: INCLUIR VARIÁVEIS SCATTER 3D
-  varPlot <- baseScatter %>%
-    select(RECEITA_TOTAL, VALOR_COMPRA_ON, VALOR_COMPRA_OFF) %>%
-    mutate(
-      RECEITA_TOTAL = log(RECEITA_TOTAL + 1),
-      VALOR_COMPRA_ON = log(VALOR_COMPRA_ON + 1),
-      VALOR_COMPRA_OFF = log(VALOR_COMPRA_OFF + 1)
-    ) %>%
-    lapply(., function(x) {(x-min(x))/(max(x)-min(x))}) %>%
-    do.call(cbind, .)
-  colnames(varPlot) <- c('LOG_RECEITA_TOTAL', 'LOG_VALOR_COMPRA_ON', 'LOG_VALOR_COMPRA_OFF')
-  
-  baseScatter <- data.frame(baseScatter, varPlot, stringsAsFactors = FALSE)
-  # FUNÇÃO: SCATTER 3D ----
-  scatter3D <- plot_ly(baseScatter,
-                       x = ~LOG_VALOR_COMPRA_OFF, 
-                       y = ~LOG_VALOR_COMPRA_ON, 
-                       z = ~LOG_RECEITA_TOTAL, 
-                       type = "scatter3d", mode = "markers", color = ~Cluster,
-                       hoverinfo = 'text', 
-                       text = ~paste('</br> Receita Total: ', round(LOG_RECEITA_TOTAL, 3),
-                                     '</br> Valor Compras On: ', round(LOG_VALOR_COMPRA_ON, 3),
-                                     '</br> Valor Compras Off: ', round(LOG_VALOR_COMPRA_OFF, 3),
-                                     '</br> #Receita Compras Off: ', round(LOG_RECEITA_COMPRA_OFF, 3),
-                                     '</br> #Receita Compras On 0+8: ', round(LOG_RECEITA_COMPRA_ON_COM_JUROS, 3),
-                                     '</br> #Receita Saque Rápido: ', round(LOG_RECEITA_SQRAP, 3),
-                                     '</br> #Receita Compras Off Parcelada: ', round(LOG_RECEITA_COMPRA_OFF_COM_JUROS, 3)) 
-  ) %>%
-    layout(
-      title = "Cluster escolhido por max(Silhueta(k))",
-      scene = list(
-        xaxis = list(title = "Valor Compras Off"),
-        yaxis = list(title = "Valor Compras On"),
-        zaxis = list(title = "Receita Total")
-      )) 
-  
-  # FUNÇÃO: TABELA DESCRIÇÃO NÃO-PARAMÉTRICA ----
-  sumarioCluster <- baseScatter %>%
-    group_by(Cluster) %>%
-    select(-SEXO, -CLASSE_SOCIAL) %>%
-    summarise_all(
-      funs(
-        Média = mean,
-        Mediana = median, 
-        Q1 = quantile(., probs = 0.25), 
-        Q3 = quantile(., probs = 0.75))
-    ) %>%
-    merge(., {
-      baseScatter %>%
-        group_by(Cluster) %>%
-        summarise(
-          zTamCluster = length(Cluster),
-          zPropCluster = length(Cluster) / length(obsAmostra)
-        )
-    }) %>%
-    t %>%
-    data.frame(
-      Metrica = row.names(.), ., stringsAsFactors = FALSE
-    ) %>%
-    arrange(desc(Metrica)) %>%
-    as.data.frame
-  
-  # FUNÇÃO: TABELA DESCRIÇÃO PARAMÉTRICA ----
-  dfPorCluster <- baseScatter %>%
-    group_by(
-      Cluster
-    ) %>%
-    summarise(
-      TamGrupo = length(Cluster),
-      Gasto = sum(VALOR_COMPRA_ON + VALOR_COMPRA_OFF + VALOR_SQRAP),
-      Receita = sum(RECEITA_TOTAL),
-      GastoMedio = mean(VALOR_COMPRA_ON + VALOR_COMPRA_OFF + VALOR_SQRAP),
-      ReceitaMedia = mean(RECEITA_TOTAL),
-      # COMPRAS ON
-      GastoMedioOn = mean(VALOR_COMPRA_ON),
-      ReceitaMediaOn = mean(RECEITA_COMPRA_ON_COM_JUROS),
-      # COMPRAS OFF
-      GastoMedioOff = mean(VALOR_COMPRA_OFF),
-      ReceitaMediaOff = mean(RECEITA_COMPRA_OFF_COM_JUROS + RECEITA_COMPRA_OFF),
-      # SAQUE RÁPIDO
-      GastoMedioSqRap = mean(VALOR_SQRAP),
-      ReceitaMediaSqRap = mean(RECEITA_SQRAP),
-      # DEMAIS
-      ReceitaMediaTarifas = mean(VALOR_TARIFAS_OFF),
-      ReceitaMediaJurosAtraso = mean(VALOR_JUROS_OFF),
-      PropMulher = mean(SEXO == 'F')
-      #PropFatura = sum(VALOR_COMPRA_CARNE) / (sum(VALOR_COMPRA_FATURA) + sum(VALOR_COMPRA_CARNE))
-    ) %>%
-    mutate(
-      PropGrupo = TamGrupo / sum(TamGrupo),
-      Margem = Receita / Gasto,
-      MargemOn = ReceitaMediaOn / GastoMedioOn,
-      MargemOff = ReceitaMediaOff / GastoMedioOff,
-      MargemSqRap = ReceitaMediaSqRap / GastoMedioSqRap,
-      PropRecOn = ReceitaMediaOn / ReceitaMedia,
-      PropRecOff = ReceitaMediaOff / ReceitaMedia,
-      PropRecSqRap = ReceitaMediaSqRap / ReceitaMedia,
-      PropReceitaTarifas = ReceitaMediaTarifas / ReceitaMedia,
-      PropReceitaJurosAtraso = ReceitaMediaJurosAtraso / ReceitaMedia
-    )
-  
-  # FUNÇÃO: GRÁFICO DESCRIÇÃO PARAMÉTRICA ----
-  
-  
-  # FUNÇÃO: BOX PLOT NIVEL E LOG ----
-  # LOG ----
-  vetorVariaveisLog <- c(
-    "LOG_RECEITA_SQRAP", "LOG_RECEITA_COMPRA_ON_COM_JUROS", 
-    "LOG_RECEITA_COMPRA_OFF_COM_JUROS", "LOG_RECEITA_COMPRA_OFF",
-    "LOG_RECEITA_TOTAL", "LOG_VALOR_COMPRA_ON"
-  )
-  vetorNomesLog = c(
-    "# Rg Scl - Log Receita Saque Rapido", "# Rg Scl - Log Receita 0 + 8", 
-    "# Rg Scl - Log Receita Off Parcelada Juros" , "# Rg Scl - Log Receita Compra Off",
-    "Rg Scl - Log Receita Total", "Rg Scl - Log Valor Vendas On"
-  )
-  
-  listaGraficosLog <- vector("list", length(vetorNomesLog))
-  for (w in seq_along(vetorNomesLog)) {
-    listaGraficosLog[[w]] <- ggplot(baseScatter, 
-                                    aes_string(x = "Cluster", y = vetorVariaveisLog[w], fill = "Cluster")) + 
-      geom_boxplot() + 
-      labs(y = vetorNomesLog[w])
-  }
-  
-  grafBoxPlotLog <- grid.arrange(
-    listaGraficosLog[[1]], listaGraficosLog[[2]], 
-    listaGraficosLog[[3]], listaGraficosLog[[4]], 
-    listaGraficosLog[[5]], listaGraficosLog[[6]],
-    ncol = 3
-  )
-  
-  # NÍVEL ----
-  vetorVariaveisNivel <- c(
-    "RECEITA_SQRAP", "RECEITA_COMPRA_ON_COM_JUROS", "RECEITA_COMPRA_OFF_COM_JUROS",
-    "RECEITA_COMPRA_OFF", "RECEITA_TOTAL", "VALOR_COMPRA_ON"
-  )
-  vetorNomesNivel <- c(
-    "Receita Saque Rapido (R$)", "Receitas Compras Parceladas (On)", 
-    "Receitas Compras Parceladas Juros (Off)", "Receita Compras OFF (R$)", 
-    "Receita Total (R$)", "Valor Compras ON (R$)"
-  )
-  
-  listaGraficosNivel <- vector("list", length(vetorNomesNivel))
-  for (w in seq_along(vetorNomesNivel)) {
-    listaGraficosNivel[[w]] <- ggplot(baseScatter, 
-                                      aes_string(x = "Cluster", y = vetorVariaveisNivel[w], fill = "Cluster")) + 
-      geom_boxplot() + 
-      labs(y = vetorNomesNivel[w])
-  }
-  
-  grafBoxPlotNivel <- grid.arrange(
-    listaGraficosNivel[[1]], listaGraficosNivel[[2]], 
-    listaGraficosNivel[[3]], listaGraficosNivel[[4]], 
-    listaGraficosNivel[[5]], listaGraficosNivel[[6]],
-    ncol = 3
-  )
-  
-  # FUNÇÃO: GGPAIRS ----
-  posNivel <- which(colnames(baseScatter) %in% vetorVariaveisNivel)
-  posLog <- which(colnames(baseScatter) %in% vetorVariaveisLog)
-  
-  grafDensHistNivel <- ggpairs(baseScatter[, posNivel], title = "Variáveis Nível")
-  grafDensHistLog <- ggpairs(baseScatter[, posLog], title = "Variáveis Log")
-  grafDensHistNivelCluster <- ggscatmat(baseScatter, columns = posNivel, color = "Cluster")
-  grafDensHistLogCluster <- ggscatmat(baseScatter, columns = posLog, color = "Cluster")
-  
-  # RESULTADO FUNÇÃO ----
-  resultado <- list(
-    gScatter3D = scatter3D, dfSumarioClusterNP = sumarioCluster, 
-    dfSumarioClusterParametrico = dfPorCluster, gBoxPlotLog = grafBoxPlotLog,
-    gBoxPlotNivel = grafBoxPlotNivel, gDensScatterNivel = grafDensHistNivel, 
-    gDensScatterLog = grafDensHistLog, gDensScatterNivelCl = grafDensHistNivelCluster,
-    gDensScatterLogCl = grafDensHistLogCluster
-  )
-  return(resultado)
-}
+# https://stats.stackexchange.com/questions/195446/choosing-the-right-linkage-method-for-hierarchical-clustering
+# OBS: NECESSÁRIO EVOLUIR PARA UM CRITÉRIO QUE PENALIZE QUANTIDADE DE CLUSTERS
 
--------------------------
-                          -----------------------
-                          -----------------------
-                          -----------------------
-                          
- library(plotly)
+library(plotly)
 library(tidyverse)
 library(cluster)
 library(purrr)
@@ -442,18 +264,15 @@ library(combinat)
 library(caret)
 library(reshape2)
 rm(list = ls())
-setwd("/media/crikket/DATABASE/Cluster Receita/")
+setwd('DIRETORIO')
 # FUNÇÕES PRE-DEFINIDAS ----
-source("funcaoCalcularCluster.R")
-source("funcaoEscolherClusters.R")
+source('R Script - Cluster - Funcao Calcular Clusters.R')
+source('R Script - Cluster - Funcao Escolher Cluster.R')
 
 # STRINGS ----
-intTestar <- 3:12
 seed <- 15081991
-criterioCandidatos <- 0.97 # PEGA OS CLUSTERS ATÉ 3% PIOR QUE MELHOR CLUSTER
-# OBS: NECESSÁRIO EVOLUIR PARA UM CRITÉRIO QUE PENALIZE QUANTIDADE DE CLUSTERS
 # BASE ----
-baseR
+baseR <- read.table("baseClusterV2.csv", header = T, sep = ";", stringsAsFactors = FALSE)
 baseR <- baseR %>%
   replace(is.na(.), 0) %>%
   mutate(
@@ -470,8 +289,7 @@ baseR <- baseR %>%
     LOG_VALOR_REFINANCIAMENTO_OFF = log(VALOR_REFINANCIAMENTO_OFF + 1),
     LOG_RECEITA_TOTAL = log(RECEITA_TOTAL + 1),
     # PROPORCOES
-    PROP_INADIMP = (VALOR_REFINANCIAMENTO_OFF + VALOR_JUROS_OFF) / (RECEITA_TOTAL + 1),
-    PROP_CARNE = VALOR_COMPRA_CARNE / (VALOR_COMPRA_CARNE + VALOR_COMPRA_FATURA + 1)
+    PROP_INADIMP = (VALOR_REFINANCIAMENTO_OFF + VALOR_JUROS_OFF) / (RECEITA_TOTAL + 1)
   ) %>%
   replace(is.na(.), 0) 
 
@@ -484,11 +302,335 @@ baseR <- within(baseR, {
   )
 })
 
+# BASE: AMOSTRA ----
+set.seed(seed)
+obsAmostra <- sample(seq(nrow(baseR)), size = 5000)
+baseCluster <- baseR[obsAmostra, ]
+
+funcaoRangeScale <- function(x) {
+  resultado <- (x-min(x))/(max(x)-min(x))
+return(resultado)
+}
+
+
 # BASE CLUSTER ----
 fixas <- c("LOG_RECEITA_COMPRA_ON_COM_JUROS", "LOG_RECEITA_COMPRA_OFF", "LOG_RECEITA_COMPRA_OFF_COM_JUROS", "LOG_RECEITA_SQRAP")
 variaveis <- c("LOG_RECEITA_SAQUE_CARTAO", "LOG_VALOR_JUROS_OFF" , "LOG_VALOR_TARIFAS_OFF", "LOG_VALOR_REFINANCIAMENTO_OFF")
 
+  # BASE CLUSTER: AJUSTAR ESCALA DAS VARIÁVEIS
+variaveisTransformar <- c(fixas, variaveis)
+for (w in seq_along(variaveisTransformar)) {
+  refCol <- which(colnames(baseCluster) == variaveisTransformar[w])
+  baseCluster[, refCol] <- funcaoRangeScale(x = baseCluster[, refCol])
+}
+
 # RESULTADOS CLUSTERS ----
-clusters <- funcaoEscolherClusters(df = baseR, varFixasNm = fixas, varCombnNm = variaveis)
+tempo <- proc.time()
+clusters <- funcaoEscolherClusters(df = baseCluster, percPior = 0.05, intK = 4:9,
+  varFixasNm = fixas, varCombnNm = variaveis)
+proc.time() - tempo
+
+save(clusters, file = "clusterApp.Rdata")
+                          
+###################################################################
+################## APP VISUALIZAÇÃO CLUSTERS ######################
+###################################################################
+
+
+library(tidyverse)
+library(shiny)
+library(ggplot2)
+library(plotly)
+library(DT)
+
+options(encoding = "UTF-8")
+# LISTA CLUSTERS 
+load("DIRETÓRIO\\clusterApp.Rdata")
+
+# CRIAR INPUTS ----
+  # CRIAR INPUTS: CLUSTERS DISPONÍVEIS ----
+clustersDisponiveis <- names(clusters$dfClusterObservacoes)
+names(clustersDisponiveis) <- clustersDisponiveis
+
+  # CRIAR INPUTS: VARIÁVEIS ----
+variaveisGraf <- colnames(clusters$dfUtilizado[, -1])
+names(variaveisGraf) <- variaveisGraf
+
+# UI ----
+app <- shinyApp(
+  ui = fluidPage(
+    
+    # TÍTULO DO APP ----
+    titlePanel("Cluster"),
+    
+    # DEFINIÇÕES BARRA LATERAL ----
+    sidebarLayout(
+      
+      # INPUT ----
+      sidebarPanel(
+        # INPUT: ID CLUSTER
+        selectInput("cluster", "Cluster:",
+                    clustersDisponiveis
+        ),
+        br(), # br() element to introduce extra vertical spacing
+        # INPUT: VARIÁVEIS GRÁFICO ----
+          # X
+        selectInput("varPlotX", "Eixo X:",
+                    variaveisGraf
+        ),
+          # Y
+        selectInput("varPlotY", "Eixo Y:",
+                    variaveisGraf
+        ),
+          # Z
+        selectInput("varPlotZ", "Eixo Z:",
+                    variaveisGraf
+        ),
+        br(),  # br() element to introduce extra vertical spacing
+          # BOX PLOT
+        selectInput("varPlotBox", "Variável Box Plot:",
+                    variaveisGraf
+        )
+      
+      ),
+      
+      # PAINEL OUTPUT ----
+      mainPanel(
+        
+        # OUTPUT: ABAS DA RESPOSTA ----
+        tabsetPanel(type = "tabs",
+                    tabPanel("Sumário Candidatos", dataTableOutput("dfSumario")),
+                    tabPanel("Tabela Paramétrica", dataTableOutput("dfParm")),
+                    tabPanel("Tabela Não-Paramétrica", dataTableOutput("dfNaoParm")),
+                    tabPanel("Gráfico Clusters", plotlyOutput("plotCluster")),
+                    tabPanel("Gráfico Box Plot", plotlyOutput("plotBox")),
+                    tabPanel("Gráfico Silhueta", plotlyOutput("plotSil"))
+        )
+        
+      )
+    )
+  )
+  ,
+  # SERVER ----
+  server = function(input, output) {
+    # REACTIVE: 
+      # REACTIVE: DF PARAMÉTRICA ----
+    dfParm <- reactive({
+      baseCluster <- data.frame(
+        clusters[["dfUtilizado"]],
+        Cluster = clusters[["dfClusterObservacoes"]][[input$cluster]]$Cluster,
+        stringsAsFactors = FALSE
+      )
+      
+      baseCluster %>%
+        group_by(
+          Cluster
+        ) %>%
+        summarise(
+          TamGrupo = length(Cluster),
+          Gasto = sum(VALOR_COMPRA_ON + VALOR_COMPRA_OFF + VALOR_SQRAP),
+          Receita = sum(RECEITA_TOTAL),
+          GastoMedio = mean(VALOR_COMPRA_ON + VALOR_COMPRA_OFF + VALOR_SQRAP),
+          ReceitaMedia = mean(RECEITA_TOTAL),
+          # COMPRAS ON
+          GastoMedioOn = mean(VALOR_COMPRA_ON),
+          ReceitaMediaOn = mean(RECEITA_COMPRA_ON_COM_JUROS),
+          # COMPRAS OFF
+          GastoMedioOff = mean(VALOR_COMPRA_OFF),
+          ReceitaMediaOff = mean(RECEITA_COMPRA_OFF_COM_JUROS + RECEITA_COMPRA_OFF),
+          # SAQUE RÁPIDO
+          GastoMedioSqRap = mean(VALOR_SQRAP),
+          ReceitaMediaSqRap = mean(RECEITA_SQRAP),
+          # DEMAIS
+          ReceitaMediaTarifas = mean(VALOR_TARIFAS_OFF),
+          ReceitaMediaJurosAtraso = mean(VALOR_JUROS_OFF),
+          PropMulher = mean(SEXO == 'F'),
+          PropApenasOn = mean(TipoUso == "Apenas On"),
+          PropApenasOff = mean(TipoUso == "Apenas Off"),
+          MediaIdade = mean(IDADE),
+          PropTarget = mean(CLASSE_SOCIAL %in% c("C1", "B2", "B1", "A"))
+          #PropFatura = sum(VALOR_COMPRA_CARNE) / (sum(VALOR_COMPRA_FATURA) + sum(VALOR_COMPRA_CARNE))
+        ) %>%
+        mutate(
+          PropGrupo = TamGrupo / sum(TamGrupo),
+          Margem = Receita / Gasto,
+          MargemOn = ReceitaMediaOn / GastoMedioOn,
+          MargemOff = ReceitaMediaOff / GastoMedioOff,
+          MargemSqRap = ReceitaMediaSqRap / GastoMedioSqRap,
+          PropRecOn = ReceitaMediaOn / ReceitaMedia,
+          PropRecOff = ReceitaMediaOff / ReceitaMedia,
+          PropRecSqRap = ReceitaMediaSqRap / ReceitaMedia,
+          PropReceitaTarifas = ReceitaMediaTarifas / ReceitaMedia,
+          PropReceitaJurosAtraso = ReceitaMediaJurosAtraso / ReceitaMedia
+        ) 
+    })
+    
+    
+      # REACTIVE: DF NÃO-PARAMÉTRICA ----
+    dfNaoParm <- reactive({
+      baseCluster <- data.frame(
+        clusters[["dfUtilizado"]],
+        Cluster = clusters[["dfClusterObservacoes"]][[input$cluster]]$Cluster,
+        stringsAsFactors = FALSE
+      )
+      
+      baseCluster %>%
+        group_by(Cluster) %>%
+        select(-SEXO, -CLASSE_SOCIAL, -TipoUso) %>%
+        summarise_all(
+          funs(
+            Média = mean,
+            Mediana = median, 
+            Q1 = quantile(., probs = 0.25), 
+            Q3 = quantile(., probs = 0.75))
+        ) %>%
+        merge(., {
+          baseCluster %>%
+            group_by(Cluster) %>%
+            summarise(
+              zTamCluster = length(Cluster),
+              zPropCluster = length(Cluster) / length(obsAmostra)
+            )
+        }) %>%
+        t %>%
+        data.frame(
+          Metrica = row.names(.), ., stringsAsFactors = FALSE
+        ) %>%
+        arrange(desc(Metrica)) %>%
+        as.data.frame
+      
+    })
+    
+      # REACTIVE: SCATTER 3D ----
+    plotCluster <- reactive({
+      dfPlot <- data.frame(
+        clusters[["dfUtilizado"]],
+        Cluster = clusters[["dfClusterObservacoes"]][[input$cluster]]$Cluster,
+        stringsAsFactors = FALSE
+      )
+      dfPlot <- data.frame(
+        .X = dfPlot[, which(colnames(dfPlot) == input$varPlotX)],
+        .Y = dfPlot[, which(colnames(dfPlot) == input$varPlotY)],
+        .Z = dfPlot[, which(colnames(dfPlot) == input$varPlotZ)],
+        .C = dfPlot[, which(colnames(dfPlot) == "Cluster")],
+        dfPlot[, which(colnames(dfPlot) %in% c(
+          "RECEITA_TOTAL", "VALOR_COMPRA_ON", "VALOR_COMPRA_OFF", "RECEITA_COMPRA_OFF",
+          "RECEITA_COMPRA_ON_COM_JUROS", "RECEITA_SQRAP", "RECEITA_COMPRA_OFF_COM_JUROS",
+          "RECEITA_SAQUE_CARTAO", "VALOR_JUROS_OFF"
+        ))]
+      )
+      
+      plot_ly(dfPlot,
+              x = ~.X, 
+              y = ~.Y, 
+              z = ~.Z, 
+              type = "scatter3d", mode = "markers", color = ~.C,
+              hoverinfo = 'text', 
+              text = ~paste(
+                            '</br> Cluster: ', .C,
+                            '</br> Receita Total: ', round(RECEITA_TOTAL, 2),
+                            '</br> Valor Compras On: ', round(VALOR_COMPRA_ON, 2),
+                            '</br> Valor Compras Off: ', round(VALOR_COMPRA_OFF, 2),
+                            '</br> #Receita Compras Off: ', round(RECEITA_COMPRA_OFF, 2),
+                            '</br> #Receita Compras On 0+8: ', round(RECEITA_COMPRA_ON_COM_JUROS, 2),
+                            '</br> #Receita Saque Rápido: ', round(RECEITA_SQRAP, 2),
+                            '</br> #Receita Compras Off Parcelada: ', round(RECEITA_COMPRA_OFF_COM_JUROS, 2)) 
+      ) %>%
+        layout(
+          title = "Cluster escolhido por max(Silhueta(k))",
+          scene = list(
+            xaxis = list(title = input$varPlotX),
+            yaxis = list(title = input$varPlotY),
+            zaxis = list(title = input$varPlotZ)
+          )) 
+      
+    })
+    
+      # REACTIVE: BOX-PLOT ----
+    plotBox <- reactive({
+      dfPlotBox <- data.frame(
+        clusters[["dfUtilizado"]],
+        Cluster = clusters[["dfClusterObservacoes"]][[input$cluster]]$Cluster,
+        stringsAsFactors = FALSE
+      )
+      dfPlotBox <- data.frame(
+        .C = as.factor(dfPlotBox[, which(colnames(dfPlotBox) == "Cluster")]),
+        .Y = dfPlotBox[, which(colnames(dfPlotBox) == input$varPlotBox)]
+      )
+      ggplotBox <- ggplot(dfPlotBox, 
+        aes_string(x = ".C", y = ".Y", fill = ".C")) + 
+        geom_boxplot()
+      ggplotly(ggplotBox)
+    })
+    
+    # NÃO-REACTIVE ----
+      # NÃO-REACTIVE: SUMÁRIO CLUSTERS ---- 
+    dfSumario <- clusters[["dfSumarioClusters"]]
+    
+      # NÃO-REACTIVE: SILHUETA ----
+    plotSilhueta <- clusters[["scatterSilhueta3D"]]
+    
+    # SAÍDAS APP ----
+      # SAÍDAS APP: NR TABELA SUMARIO ----
+    output$dfSumario <- renderDataTable({
+      datatable(dfSumario,extensions = 'FixedColumns',
+                options = list(
+                  dom = 't',
+                  scrollX = TRUE,
+                  fixedColumns = TRUE
+                ))
+    })
+      # SAÍDAS APP: NR GRAFICO SILHUETA ----
+    output$plotSil <- renderPlotly({
+      plotSilhueta
+    })
+    
+      # SAÍDAS APP: R TABELA PARAMÉTRICA ----
+    output$dfParm <- renderDataTable({
+      datatable(dfParm(), extensions = 'FixedColumns',
+                options = list(
+                  dom = 't',
+                  scrollX = TRUE,
+                  fixedColumns = TRUE
+                )) %>%
+        formatCurrency(c(
+          "Gasto", "Receita", "GastoMedio", "ReceitaMedia", "GastoMedioOn",
+          "ReceitaMediaOn", "GastoMedioOff", "ReceitaMediaOff", "GastoMedioSqRap",
+          "ReceitaMediaSqRap", "ReceitaMediaTarifas", "ReceitaMediaJurosAtraso"
+        ), digits = 2) %>%
+        formatPercentage(c(
+          "PropApenasOn", "PropApenasOff", "PropTarget", "PropGrupo", "Margem",
+          "MargemOn", "MargemOff", "MargemSqRap", "PropRecOn", "PropRecOff", 
+          "PropRecSqRap","PropReceitaTarifas", "PropReceitaJurosAtraso"
+        ), digits = 2) %>%
+        formatRound(
+          c("MediaIdade"), digits = 2
+        )
+    })
+      # SAÍDAS APP: R TABELA NÃO-PARAMPETRICA (NÃO FORMATADA) ----
+    output$dfNaoParm <- renderDataTable({
+      datatable(dfNaoParm(), extensions = 'FixedColumns',
+                options = list(
+                  dom = 't',
+                  scrollX = TRUE,
+                  fixedColumns = TRUE
+                ))
+    })
+    
+      # SAÍDAS APP: R GRÁFICO CLUSTER ----
+    output$plotCluster <- renderPlotly({
+      plotCluster()
+    })
+      # SAÍDAS APP: R GRÁFICO BOX-PLOT ----
+    output$plotBox <- renderPlotly({
+      plotBox()
+    })
+    
+  }
+)
+# APLICAÇÃO ----
+#shinyApp(ui = ui, server = server)
+runApp(app, host = "IPv4", quiet = TRUE, launch.browser = TRUE)
+                          
                           
                           
